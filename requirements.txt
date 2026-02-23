@@ -1,0 +1,8 @@
+customtkinter
+pyaudio
+assemblyai
+deepgram-sdk
+python-dotenv
+pyperclip
+watchdog
+tkinterdnd2
