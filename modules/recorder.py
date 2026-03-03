@@ -25,9 +25,13 @@ class RecorderFrame(ctk.CTkFrame):
         # State
         self.recording_start_time = None
         self.current_file_size = 0
-        self.max_file_size = 80 * 1024 * 1024
-        self.save_path = os.getenv("WATCH_DIRECTORY", r"C:\Users\ferna\OneDrive\Documentos\Gravacoes Som Audio Recorder Free")
+        self.max_file_size = 6 * 1024 * 1024  # 6 MB limit for auto-split
+        _default_save = os.path.join(os.path.expanduser("~"), "OneDrive", "Documentos", "Gravacoes Som Audio Recorder Free")
+        self.save_path = os.getenv("WATCH_DIRECTORY", _default_save)
         os.makedirs(self.save_path, exist_ok=True)
+
+        # Callback to send file to transcription automatically
+        self.on_auto_transcribe = None  # Set externally by UnifiedApp
 
         self.setup_ui()
         self.populate_devices()
@@ -103,7 +107,8 @@ class RecorderFrame(ctk.CTkFrame):
         else:
             self.start_recording()
 
-    def start_recording(self):
+    def start_recording(self, auto_restart=False):
+        """Start recording. auto_restart=True means called automatically after a split."""
         device_index = self.get_selected_device_index()
         if device_index is None:
             messagebox.showerror("Erro", "Selecione um dispositivo!")
@@ -126,10 +131,12 @@ class RecorderFrame(ctk.CTkFrame):
         self.frames = []
         self.recording_start_time = time.time()
         
-        # UI Updates
-        self.record_button.configure(text="Parar Gravação", fg_color="red", hover_color="darkred")
+        # UI Updates (only update button if not an internal auto-restart)
+        if not auto_restart:
+            self.record_button.configure(text="Parar Gravação", fg_color="red", hover_color="darkred")
+            self.device_combo.configure(state="disabled")
+        
         self.status_label.configure(text="Gravando...", text_color="green")
-        self.device_combo.configure(state="disabled")
         
         # Threads
         threading.Thread(target=self.record_loop, daemon=True).start()
@@ -143,10 +150,22 @@ class RecorderFrame(ctk.CTkFrame):
         self.device_combo.configure(state="normal")
 
     def record_loop(self):
+        """Main recording loop. Monitors size and triggers auto-split at max_file_size."""
+        split_triggered = False
+
         while self.is_recording:
             try:
                 data = self.stream.read(self.chunk)
                 self.frames.append(data)
+
+                # Check size limit
+                size_bytes = len(self.frames) * self.chunk * 2  # paInt16 = 2 bytes per sample
+                if size_bytes >= self.max_file_size:
+                    # Pause recording flag so the UI loop exits cleanly
+                    self.is_recording = False
+                    split_triggered = True
+                    break
+
             except Exception as e:
                 print(f"Error recording: {e}")
                 self.is_recording = False
@@ -154,13 +173,23 @@ class RecorderFrame(ctk.CTkFrame):
         
         self.stream.stop_stream()
         self.stream.close()
-        self.save_recording()
+
+        # Save current segment
+        saved_path = self.save_recording()
+
+        if split_triggered and saved_path:
+            # Auto-transcribe on main thread callback
+            if self.on_auto_transcribe:
+                self.after(0, lambda p=saved_path: self.on_auto_transcribe(p))
+            # Restart recording automatically on the main thread
+            self.after(200, lambda: self.start_recording(auto_restart=True))
 
     def save_recording(self):
+        """Save current frames to a WAV file. Returns the file path or None."""
         if not self.frames:
-            return
+            return None
             
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"gravacao-fernando_{timestamp}.wav"
         filepath = os.path.join(self.save_path, filename)
         
@@ -172,6 +201,7 @@ class RecorderFrame(ctk.CTkFrame):
         wf.close()
         
         self.file_label.configure(text=f"Salvo em: {filename}")
+        return filepath
 
     def update_ui_loop(self):
         while self.is_recording:
@@ -180,11 +210,11 @@ class RecorderFrame(ctk.CTkFrame):
             minutes = int((elapsed % 3600) // 60)
             seconds = int(elapsed % 60)
             
-            size_bytes = len(b''.join(self.frames))
+            size_bytes = len(self.frames) * self.chunk * 2
             size_mb = size_bytes / (1024 * 1024)
             
             self.time_label.configure(text=f"{hours:02d}:{minutes:02d}:{seconds:02d}")
-            self.size_label.configure(text=f"{size_mb:.2f} MB")
+            self.size_label.configure(text=f"{size_mb:.2f} MB / 6.00 MB")
             
             time.sleep(0.5)
 

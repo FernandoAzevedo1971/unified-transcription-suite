@@ -56,9 +56,15 @@ class DeepgramService(TranscriptionService):
                 "language": "pt-BR",
             }
             
+            # Use explicit keyword arguments to avoid any positional argument confusion
+            # The SDK v6.0.0 (Fern-generated) expects everything as keyword arguments
             response = self.client.listen.v1.media.transcribe_file(
                 request=buffer_data,
-                **options
+                model=options.get("model", "nova-2"),
+                language=options.get("language", "pt-BR"),
+                smart_format=options.get("smart_format", True),
+                diarize=options.get("diarize", True),
+                paragraphs=options.get("paragraphs", True)
             )
             
             # Format Diarization

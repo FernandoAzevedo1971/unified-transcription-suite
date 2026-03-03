@@ -42,6 +42,10 @@ class UnifiedApp(ctk.CTk, TkinterDnD.DnDWrapper):
         self.transcriber_frame = TranscriberFrame(self)
         self.transcriber_frame.grid(row=0, column=1, padx=(10, 20), pady=20, sticky="nsew")
 
+        # Connect auto-transcribe callback: when recorder hits 6 MB limit,
+        # automatically send the saved file to the transcriber
+        self.recorder_frame.on_auto_transcribe = self.transcriber_frame.process_file_thread
+
 if __name__ == "__main__":
     app = UnifiedApp()
     app.mainloop()
