@@ -25,7 +25,7 @@ class RecorderFrame(ctk.CTkFrame):
         # State
         self.recording_start_time = None
         self.current_file_size = 0
-        self.max_file_size = 6 * 1024 * 1024  # 6 MB limit for auto-split
+        self.max_file_size = 60 * 1024 * 1024  # 60 MB limit for auto-split
         _default_save = os.path.join(os.path.expanduser("~"), "OneDrive", "Documentos", "Gravacoes Som Audio Recorder Free")
         self.save_path = os.getenv("WATCH_DIRECTORY", _default_save)
         os.makedirs(self.save_path, exist_ok=True)
@@ -214,7 +214,7 @@ class RecorderFrame(ctk.CTkFrame):
             size_mb = size_bytes / (1024 * 1024)
             
             self.time_label.configure(text=f"{hours:02d}:{minutes:02d}:{seconds:02d}")
-            self.size_label.configure(text=f"{size_mb:.2f} MB / 6.00 MB")
+            self.size_label.configure(text=f"{size_mb:.2f} MB / 60.00 MB")
             
             time.sleep(0.5)
 
